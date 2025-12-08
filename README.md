@@ -2,6 +2,14 @@
 
 A lightweight monitoring service that periodically pings a target host, performs spot speed checks, and records samples and outage events in memory.
 
+## SwiftUI companion app
+
+`SwiftUIApp` holds a minimal iOS SwiftUI client with:
+- Start/stop controls for running a local monitoring session.
+- Live stats for current ping, most recent speed sample, and interruption count.
+- A Sessions tab that reads saved session JSON logs from the app's Documents/Sessions folder, shows summaries, and surfaces the raw JSON payloads.
+- Settings for host, ping/speed intervals, outage threshold, and a toggle to disable speed tests to conserve bandwidth.
+
 ## Features
 - Configurable ping interval and timeout with rolling uptime/failure counts.
 - Outage detection triggered by consecutive ping failures; records start/end timestamps.
