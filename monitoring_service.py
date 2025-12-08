@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from subprocess import CalledProcessError, run
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Protocol
 
 
 @dataclass
@@ -64,6 +64,38 @@ def serialize_outage(outage: OutageEvent) -> Dict[str, object]:
         "end": outage.end.isoformat() if outage.end else None,
         "failure_count": outage.failure_count,
     }
+
+
+class PlatformAdapter(Protocol):
+    """Abstraction over platform-specific behaviors.
+
+    Implementations encapsulate OS-specific details such as ping invocation and
+    the storage location for persisted monitoring sessions. This allows swapping
+    macOS defaults for Windows equivalents without changing the monitoring loop
+    or data model.
+    """
+
+    def ping(self, target: str, timeout: float) -> Optional[float]:
+        ...
+
+    def sessions_directory(self) -> Path:
+        ...
+
+
+class MacPlatformAdapter:
+    """Default adapter tailored for macOS systems."""
+
+    def ping(self, target: str, timeout: float) -> Optional[float]:
+        return default_ping_probe(target, timeout)
+
+    def sessions_directory(self) -> Path:
+        return (
+            Path.home()
+            / "Library"
+            / "Application Support"
+            / "internetconnectiontestingapp"
+            / "sessions"
+        )
 
 
 @dataclass
@@ -151,6 +183,7 @@ class MonitoringService:
         recorder: Optional[SessionRecorder] = None,
         ping_probe: Optional[Callable[[str, float], float]] = None,
         downloader: Optional[Callable[[str, int, float], SpeedSample]] = None,
+        platform: Optional[PlatformAdapter] = None,
     ) -> None:
         self.target = target
         self.ping_interval = ping_interval
@@ -160,7 +193,8 @@ class MonitoringService:
         self.speed_blob_bytes = speed_blob_bytes
         self.consecutive_failure_threshold = max(1, consecutive_failure_threshold)
         self.recorder = recorder or SessionRecorder()
-        self.ping_probe = ping_probe or default_ping_probe
+        self.platform = platform or MacPlatformAdapter()
+        self.ping_probe = ping_probe or self.platform.ping
         self.downloader = downloader or default_downloader
 
         self._stop_event = threading.Event()
@@ -337,9 +371,10 @@ class MonitoringService:
         session_file.write_text(json.dumps(payload, indent=2))
         self._update_index(session, session_file)
 
-    @staticmethod
-    def _sessions_directory() -> Path:
-        return Path.home() / "Library" / "Application Support" / "internetconnectiontestingapp" / "sessions"
+    def _sessions_directory(self) -> Path:
+        """Return the platform-specific storage directory for session files."""
+
+        return self.platform.sessions_directory()
 
     def _session_id(self) -> str:
         started = self.session_started_at or datetime.utcnow()
