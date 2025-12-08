@@ -15,12 +15,20 @@ final class SessionStore: ObservableObject {
         if let folderURL {
             self.folderURL = folderURL
         } else {
-            self.folderURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("Sessions", isDirectory: true)
+            self.folderURL = Self.defaultSessionsDirectory()
         }
 
         try? FileManager.default.createDirectory(at: self.folderURL, withIntermediateDirectories: true)
         loadSessions()
+    }
+
+    private static func defaultSessionsDirectory() -> URL {
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        let baseDirectory = appSupport ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let appFolderName = Bundle.main.bundleIdentifier ?? "InternetConnectionTestingApp"
+        return baseDirectory
+            .appendingPathComponent(appFolderName, isDirectory: true)
+            .appendingPathComponent("Sessions", isDirectory: true)
     }
 
     func loadSessions() {
