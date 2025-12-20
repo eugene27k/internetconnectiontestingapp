@@ -78,6 +78,21 @@ If you want a simple downloadable app instead of running Python from Terminal, y
 
 > Note: This build is not notarized. For distribution outside your machine/team, use your Apple Developer ID to sign and notarize the `.app` or the DMG.
 
+## Build a double-clickable Windows app (ZIP)
+If you want a simple downloadable app on Windows, you can package the Tk-based wrapper (`win_app_main.py`) into an `.exe` and share a ZIP:
+
+1. Install Python 3 from python.org (make sure to check **Add python.exe to PATH**).
+2. Open PowerShell, navigate to the repo root, and run:
+   ```powershell
+   ./scripts/build_windows_app.ps1
+   ```
+3. The script produces:
+   - `dist/InternetConnectionTestingApp/InternetConnectionTestingApp.exe` — the double-clickable app.
+   - `dist/InternetConnectionTestingApp.zip` — a ZIP you can share or move to another PC.
+4. When you launch the app, Windows may show a SmartScreen warning. Click **More info** → **Run anyway** to proceed. Session logs are saved under `%LOCALAPPDATA%\internetconnectiontestingapp\sessions`.
+
+> Note: This build is not code-signed. For distribution outside your machine/team, sign the `.exe` with your organization’s certificate to reduce SmartScreen prompts.
+
 ### Using the SwiftUI app in Xcode (iOS simulator or device)
 The `SwiftUIApp` folder contains the views, models, and services for an iOS client; there is no `.xcodeproj` included. To try it:
 1. Open Xcode → *File > New > Project…* → choose **App (iOS)** → name it `InternetConnectionTestingApp`.
