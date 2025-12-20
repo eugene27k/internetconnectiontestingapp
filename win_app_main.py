@@ -15,6 +15,7 @@ DEFAULT_TARGET = "1.1.1.1"
 DEFAULT_PING_INTERVAL = 1.0
 DEFAULT_PING_TIMEOUT = 1.0
 DEFAULT_SPEED_INTERVAL = 30.0
+DEFAULT_SPEED_DURATION = 10.0
 DEFAULT_SPEED_URL = "https://speed.cloudflare.com/__down?bytes=524288"
 
 
@@ -55,20 +56,25 @@ class MonitorApp(tk.Tk):
         self.speed_interval_entry.insert(0, str(DEFAULT_SPEED_INTERVAL))
         self.speed_interval_entry.grid(row=3, column=1, sticky="w", **padding_options)
 
-        tk.Label(self, text="Speed download URL").grid(row=4, column=0, sticky="w", **padding_options)
+        tk.Label(self, text="Speed test duration (seconds)").grid(row=4, column=0, sticky="w", **padding_options)
+        self.speed_duration_entry = tk.Entry(self, width=10)
+        self.speed_duration_entry.insert(0, str(DEFAULT_SPEED_DURATION))
+        self.speed_duration_entry.grid(row=4, column=1, sticky="w", **padding_options)
+
+        tk.Label(self, text="Speed download URL").grid(row=5, column=0, sticky="w", **padding_options)
         self.speed_url_entry = tk.Entry(self, width=40)
         self.speed_url_entry.insert(0, DEFAULT_SPEED_URL)
-        self.speed_url_entry.grid(row=4, column=1, sticky="we", **padding_options)
+        self.speed_url_entry.grid(row=5, column=1, sticky="we", **padding_options)
 
         button_frame = tk.Frame(self)
-        button_frame.grid(row=5, column=0, columnspan=2, **padding_options)
+        button_frame.grid(row=6, column=0, columnspan=2, **padding_options)
         self.start_button = tk.Button(button_frame, text="Start monitoring", command=self._start_monitor)
         self.start_button.grid(row=0, column=0, padx=8)
         self.stop_button = tk.Button(button_frame, text="Stop", command=self._stop_monitor, state=tk.DISABLED)
         self.stop_button.grid(row=0, column=1, padx=8)
 
         self.status_label = tk.Label(self, text="Idle", anchor="w", justify="left")
-        self.status_label.grid(row=6, column=0, columnspan=2, sticky="we", **padding_options)
+        self.status_label.grid(row=7, column=0, columnspan=2, sticky="we", **padding_options)
 
     def _start_monitor(self) -> None:
         if self.monitor_thread and self.monitor_thread.is_alive():
@@ -79,6 +85,7 @@ class MonitorApp(tk.Tk):
             ping_interval = float(self.ping_interval_entry.get())
             ping_timeout = float(self.ping_timeout_entry.get())
             speed_interval = float(self.speed_interval_entry.get())
+            speed_duration = float(self.speed_duration_entry.get())
             speed_url = self.speed_url_entry.get().strip() or None
         except ValueError:
             messagebox.showerror("Invalid input", "Please enter numeric values for intervals/timeouts.")
@@ -94,6 +101,7 @@ class MonitorApp(tk.Tk):
             ping_timeout=max(0.2, ping_timeout),
             speed_interval=max(5.0, speed_interval),
             speed_blob_url=speed_url,
+            speed_test_duration=max(0.0, speed_duration),
             consecutive_failure_threshold=3,
         )
 

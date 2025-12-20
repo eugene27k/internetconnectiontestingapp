@@ -40,6 +40,9 @@ print(monitor.recorder.snapshot())
 
 The monitor runs background threads: a frequent ping loop (e.g., every 1–2 seconds) and a speed loop that performs a download check at startup and on a configurable cadence.
 
+### Continuous (streaming) speed checks
+If you want a near-continuous readout similar to streaming speed dashboards, set a **speed test duration** and keep the **speed interval** close to that duration (for example, 10 seconds each). This makes the monitor continuously download data and compute throughput for each window, yielding a rolling Mbps value.
+
 ## macOS quickstart (no DMG installer)
 If you are new to development, follow these steps on a Mac to get a working run:
 
