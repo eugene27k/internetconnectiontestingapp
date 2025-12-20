@@ -1,5 +1,7 @@
 import json
+import os
 import re
+import sys
 import threading
 import time
 from dataclasses import dataclass
@@ -98,6 +100,23 @@ class MacPlatformAdapter:
         )
 
 
+class WindowsPlatformAdapter:
+    """Default adapter tailored for Windows systems."""
+
+    def ping(self, target: str, timeout: float) -> Optional[float]:
+        return windows_ping_probe(target, timeout)
+
+    def sessions_directory(self) -> Path:
+        base_dir = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or str(Path.home())
+        return Path(base_dir) / "internetconnectiontestingapp" / "sessions"
+
+
+def default_platform_adapter() -> PlatformAdapter:
+    if sys.platform.startswith("win"):
+        return WindowsPlatformAdapter()
+    return MacPlatformAdapter()
+
+
 @dataclass
 class SessionSummary:
     session_id: str
@@ -179,6 +198,7 @@ class MonitoringService:
         speed_interval: float = 60.0,
         speed_blob_url: Optional[str] = None,
         speed_blob_bytes: int = 512 * 1024,
+        speed_test_duration: Optional[float] = None,
         consecutive_failure_threshold: int = 3,
         recorder: Optional[SessionRecorder] = None,
         ping_probe: Optional[Callable[[str, float], float]] = None,
@@ -191,9 +211,10 @@ class MonitoringService:
         self.speed_interval = speed_interval
         self.speed_blob_url = speed_blob_url
         self.speed_blob_bytes = speed_blob_bytes
+        self.speed_test_duration = speed_test_duration
         self.consecutive_failure_threshold = max(1, consecutive_failure_threshold)
         self.recorder = recorder or SessionRecorder()
-        self.platform = platform or MacPlatformAdapter()
+        self.platform = platform or default_platform_adapter()
         self.ping_probe = ping_probe or self.platform.ping
         self.downloader = downloader or default_downloader
 
@@ -300,7 +321,14 @@ class MonitoringService:
             return
         sample_time = datetime.utcnow()
         try:
-            speed_sample = self.downloader(self.speed_blob_url, self.speed_blob_bytes, self.ping_timeout)
+            if self.speed_test_duration and self.speed_test_duration > 0:
+                speed_sample = continuous_downloader(
+                    self.speed_blob_url,
+                    self.speed_test_duration,
+                    self.ping_timeout,
+                )
+            else:
+                speed_sample = self.downloader(self.speed_blob_url, self.speed_blob_bytes, self.ping_timeout)
         except Exception as exc:  # pragma: no cover - defensive logging
             speed_sample = SpeedSample(
                 timestamp=sample_time,
@@ -443,6 +471,31 @@ def default_ping_probe(target: str, timeout: float) -> Optional[float]:
     return float(match.group(1))
 
 
+def windows_ping_probe(target: str, timeout: float) -> Optional[float]:
+    """Send a single ping on Windows and return latency in milliseconds or None."""
+    timeout_ms = max(1, int(timeout * 1000))
+    try:
+        completed = run(
+            ["ping", "-n", "1", "-w", str(timeout_ms), target],
+            capture_output=True,
+            text=True,
+            timeout=timeout + 1.0,
+            check=False,
+        )
+    except CalledProcessError:
+        return None
+    except Exception:
+        return None
+
+    if completed.returncode != 0:
+        return None
+
+    match = re.search(r"time[=<]\s*([0-9]+)ms", completed.stdout)
+    if not match:
+        return None
+    return float(match.group(1))
+
+
 def default_downloader(url: str, expected_bytes: int, timeout: float) -> SpeedSample:
     import urllib.request
 
@@ -455,6 +508,31 @@ def default_downloader(url: str, expected_bytes: int, timeout: float) -> SpeedSa
         timestamp=datetime.utcnow(),
         direction="download",
         size_bytes=len(data),
+        duration_seconds=duration,
+        throughput_mbps=throughput_mbps,
+    )
+
+
+def continuous_downloader(url: str, duration_seconds: float, timeout: float) -> SpeedSample:
+    import urllib.request
+
+    duration_seconds = max(duration_seconds, 0.1)
+    start = time.monotonic()
+    bytes_read = 0
+    with urllib.request.urlopen(url, timeout=timeout) as response:
+        while True:
+            chunk = response.read(64 * 1024)
+            if not chunk:
+                break
+            bytes_read += len(chunk)
+            if time.monotonic() - start >= duration_seconds:
+                break
+    duration = max(time.monotonic() - start, 1e-6)
+    throughput_mbps = (bytes_read * 8) / (duration * 1_000_000)
+    return SpeedSample(
+        timestamp=datetime.utcnow(),
+        direction="download",
+        size_bytes=bytes_read,
         duration_seconds=duration,
         throughput_mbps=throughput_mbps,
     )
